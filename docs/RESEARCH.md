@@ -1,206 +1,192 @@
-# ArmStation research notes
+# ArmStation research notes (v2: translation-layer model)
 
-*Written 2026-10-24. Findings are tagged **[Sourced]** (read from a linked page), **[Inference]** (my reasoning from sourced facts or general knowledge) or **[Unverified]** (plausible, but I could not confirm it). Treat untagged design recommendations as inference. Re-verify anything load-bearing before building on it.*
+*Updated 2026-10-24. Tags: **[Sourced]** = read from a linked page; **[Inference]** = my reasoning; **[Unverified]** = plausible but not confirmed. Re-verify anything load-bearing before building on it. This version replaces the earlier emulator-oriented notes.*
+
+## 0. What changed
+
+The goal is a **translation layer**, in the style of CrossOver and AnyPS5: run the game's own code, reimplement the console's system libraries, and translate graphics calls. It is not a console emulator, and it is PS5-only. Two corrections to my earlier advice:
+
+1. **AnyPS5 does no CPU translation.** It relinks the game's x86-64 code to run natively on x86-64 Windows and Linux hosts. So "AnyPS5 for ARM" means AnyPS5 plus an x86-64 to ARM64 execution layer. That layer is the main new engineering. [Sourced]
+2. **My earlier Rust-first recommendation should be revisited.** The pieces we'd build on (FEXCore, AnyPS5's libraries and shader recompiler) are all C++. See section 11.
 
 ## 1. Summary
 
-1. **PS5 emulation already exists in early form.** KytyPS5, SharpEmu and AnyPS5 are public, and shadPS4 covers the PS4 side. Nobody has a broadly playable PS5 emulator, but ArmStation is not breaking new ground on "can it be done".
-2. **Every macOS effort found is x86-64 plus Rosetta 2 plus MoltenVK.** None runs guest code natively on ARM64. That is ArmStation's real opening.
-3. **Two macOS facts shape the whole design:**
-   - **Rosetta is on a deprecation clock.** macOS 27 is reported as the last release with full Rosetta, so the Rosetta-based approach has a shelf life.
-   - **macOS refuses to map the addresses PS5 titles want.** The low 4 GB is reserved and a large GPU carveout sits above it. Titles linked at low, non-relocatable addresses cannot be mapped as-is, even under Rosetta.
-4. **Therefore ArmStation needs a guest-to-host address translation layer from day one**, and it cannot be bolted on later. This is the most important architectural decision in the project.
-5. **GPU work is the largest cost**, but the path is well mapped: decode command streams, recompile RDNA 2 shaders through an IR, emit SPIR-V or MSL.
-6. **Controller and performance tooling are the easy parts.** Apple's frameworks cover most of both.
-7. **Licensing needs a decision now.** The closest prior art (shadPS4, SharpEmu) is GPL-2.0. ArmStation is MIT. Reusing their code means GPL.
+- **Architecture that fits the goal:** a macOS ARM64 *runner* process that loads the guest ELF into a reserved address window, executes guest x86-64 through an embedded translator (FEXCore), and routes the guest's library calls into native HLE libraries (ported from AnyPS5) and a Metal-backed graphics layer. This is the CrossOver design with PS5 in place of Windows.
+- **A working precedent exists for the hardest CPU piece.** A community fork of FEX-Emu already runs FEXCore inside a macOS ARM64 process with guest memory in a translated window, Apple-compliant JIT, and self-modifying-code tracking. [Sourced]
+- **CodeWeavers is solving the same problem right now** for CrossOver: porting FEX to macOS ARM64 because Rosetta is ending. [Sourced]
+- **Rosetta ends with macOS 28 (late 2027)** per CodeWeavers; macOS 27 is the last full release. Anything Rosetta-based has about one more OS cycle. [Sourced]
+- **Biggest technical risk:** x86 memory ordering. Apple silicon has hardware TSO, but I found no public macOS way for third parties to use it. Software ordering can be severe. Measure first. [Sourced + Inference]
+- **Biggest practical lever:** reuse AnyPS5's work (relinker logic, system libraries, RDNA 2 to SPIR-V recompiler). It is **GPL-2.0-only**, so ArmStation would become GPL-2.0-only too.
 
-## 2. Landscape
+## 2. How CrossOver and Highball work, and the PS5 mapping
 
-| Project | Target | Language / license | macOS story | Notes |
-|---|---|---|---|---|
-| shadPS4 | PS4 | C++, GPLv2 | Builds for macOS; runs as x86-64 under Rosetta | 317 titles "in game", 179 playable as of Nov 2025 (Wikipedia). Shader recompiler, shader cache, optional "readbacks" to emulate shared CPU/GPU memory. [Sourced] |
-| KytyPS5 | PS5 | C++ | Experimental, x86-64 under Rosetta, Vulkan 1.3 via MoltenVK | Shader recompiler: decode, IR, control flow, resource tracking, SPIR-V. RDNA 2 ISA guide is the reference. Few titles verified on Apple Silicon. [Sourced] |
-| SharpEmu | PS5 | C#, GPL-2.0 | x64 build via Rosetta 2, MoltenVK | Loads eboot.bin and system modules; partial kernel, Fiber and AMPR exports. 12 of 55 tested titles reached gameplay, 6 at a playable 60 FPS (Tom's Hardware). Self-described as research. [Sourced] |
-| AnyPS5 | PS5 | C++ | Not an end-user macOS target; macOS appears only in builds and tests | Converts PS5 executables to native Windows/Linux programs and replaces Sony libraries. Has a `relinker` component and handles AMD64-only instructions (SSE4A, CLZERO). [Sourced] |
-| Ryty | PS5 | - | Mach-O relinker experiments | Documents exactly why low-address PS5 titles don't fit in a macOS process (section 4). [Sourced] |
+| Role | CrossOver / Highball (Windows) | ArmStation (PS5) |
+|---|---|---|
+| OS API layer | Wine reimplements Win32 | HLE libraries (libkernel, libc, libSce*), as AnyPS5's `core/libs/prx` |
+| CPU | Rosetta 2 today; CrossOver is porting FEX for macOS 28+ | FEXCore (or equivalent) embedded in our runner |
+| Graphics | Apple's D3DMetal (Game Porting Toolkit) | AGC command decode, RDNA 2 shader recompiler, then MoltenVK/Metal |
+| Packaging | Per-game bottles and settings | Per-title prefix with converted modules |
 
-Two details matter most:
+- **Highball** is a free, open-source Mac app (GPL-3.0) positioned as Whisky's successor. It uses Rosetta and Apple's D3DMetal, which is downloaded separately under Apple's license. [Sourced] Its own README doesn't name its Windows layer, so I can't say whether it uses Wine directly.
+- **CrossOver's ARM64 preview** is built on FEX for x86 translation. It is targeted at CrossOver 28, the author calls the macOS port non-trivial, and whether FEX on macOS matches Rosetta's speed is explicitly unproven. [Sourced]
+- **CodeWeavers' timeline:** Rosetta ends with macOS 28 in late 2027, and Wine 10 added full ARM64EC support when paired with an emulator. [Sourced]
 
-- shadPS4's own maintainers say its ARM64 CPU path is a stub. All guest code relies on Rosetta. [Sourced, shadPS4 issue 4157]
-- Kyty's docs state that external low-level emulation modules are neither required nor planned, meaning system libraries are reimplemented in-process (HLE). [Sourced]
+## 3. AnyPS5 anatomy
 
-**PS4 versus PS5 is not "one runtime".** [Inference] PS5 runs PS4 titles in a separate compatibility mode, and PS4 and PS5 builds use different graphics APIs (GNM for PS4; AGC for PS5, descended from it). Supporting PS5 executables does not automatically cover PS4 games. PS4 support would be additional work, though much of the loader, kernel and CPU work is shared.
+[All Sourced from the AnyPS5 repository and its docs unless noted.]
 
-## 3. Rosetta is on a clock
+- **What it is:** a relinker that converts a decrypted PS5 executable into a native Linux ELF or Windows PE. "Nothing is emulated": the game's x86-64 code runs as host code and calls native reimplementations of system libraries. **GPL-2.0-only.**
+- **Layout:** `core/relinker`, `core/libs/prx` (system library implementations built as shared libraries), `core/shader/recompiler`, plus `3rdparty/` (SPIRV-Tools), a web converter, docs, and tools.
+- **Relinker pipeline:** optional `--to-intel` pass that lowers AMD-only instructions (e.g., SSE4a, CLZERO); read imports by NID; check syscalls; filter unused imports; build a System V dynamic section; convert the bundled `sce_module/*` modules; write the final ELF or PE.
+- **NID binding:** each library export is renamed to its NID (a hash computed from the function name). The host OS loader binds the game's imports by NID.
+- **Graphics path:** the game submits command buffers through the AGC driver; a PM4 executor handles state, draws and dispatches; shader variants are looked up in memory and on disk, else recompiled (RDNA decoder, control flow and structurization, translation to an IR, SSA and resource optimization, SPIR-V backend), then a Vulkan pipeline is built. A persistent shader cache exists.
+- **Rules of the road:** every function either does exactly what it should or throws; missing imports fail at startup; silent stubs only for UI-only gaps and logged as technical debt; third-party code goes in as submodules; the relinker uses only the C++20 standard library; PRs must disclose AI assistance.
+- **Status:** v0.1.0 and v0.1.1 appeared on 28 Sept 2026. The compatibility list had one confirmed title (Dreaming Sarah, a 2D platformer) at the time of one report. A separate report tested Dead Cells and measured about 55-60 FPS indoors and 30-35 outdoors on a high-end PC. Large 3D games are described as not close.
+- **Known gaps** (its own technical-debt doc): stubbed save-data and common dialogs, no HMD support, barycentric coordinates skipped in shaders, several unknown AGC and libkernel signatures, a few audio and image codec limits, `--to-intel` cannot lower some instructions (RDPRU, MCOMMIT, some SHA forms). 3D audio produces no sound.
+- **Build:** x86-64 Linux and Windows toolchains only; Windows needs a specific MinGW-w64. No macOS build guide. [Sourced]
+- **Forks:** *Ryty* (GPL-2.0) adds PS4 support and an experimental `--macos` target with an Objective-C/C++ Metal graphics bridge; its macOS output is x86-64 under Rosetta. *PortPS5* (GPL-2.0-only) is a Windows-focused hard fork with a defined 1.0 gate (five pinned titles at 30+ fps).
+- **Worth noting:** the Ryty macOS investigation found low-address PS5 titles cannot be mapped inside a macOS process at all. A translated-window design (below) is what removes that blocker.
 
-- Tahoe (macOS 26) is the last release for Intel Macs, and macOS 27 is reported as the last release with full general-purpose Rosetta. After that, only a limited Rosetta for older games is reported to remain. [Sourced: TechRepublic report; I did not find an official Apple statement]
-- The attribution is second-hand, so confirm against Apple's developer documentation before planning around exact dates.
-- **Implication:** an x86-64 + Rosetta ArmStation would work for roughly one more OS cycle. A native ARM64 execution path is not optional for a long-lived project. [Inference]
+## 4. The missing piece: CPU execution on ARM64
 
-## 4. The address-space problem
+### Candidates
 
-### What macOS does [Sourced]
+| Option | License | Status for our use |
+|---|---|---|
+| **FEXCore** (core of FEX-Emu) | MIT | **Recommended.** A Darwin port of FEXCore exists as a community fork: guest memory in a window at a host offset (fits a 47-bit guest space), JIT per Apple's W^X rules (`MAP_JIT`, `pthread_jit_write_protect_np`), asynchronous signals only at guest instruction boundaries, self-modifying code tracking per host page, Darwin replacements for Linux helpers. It builds FEXCore only (no tools or thunks) and serves guest Linux syscalls from a host program. Upstream FEX has said it has no plans to support macOS. [Sourced] |
+| **Box64 dynarec** | MIT (repo) | Mature ARM64 dynarec; AVX and AVX2 mapped onto NEON since 0.3.0; code cache on disk; wrapped host libraries. Linux-oriented, no macOS mention. Strong reference, harder to embed. [Sourced] |
+| **Static whole-binary translation** (Elevator paper, Remill + LLVM, rev.ng, Lasagne) | Mixed | Research-grade. Elevator translates whole x86-64 executables to AArch64 with no heuristics but with large code-size growth; no public release confirmed. Remill (Apache-2.0) lifts x86-64 including AVX to LLVM IR but is a library, not a recompiler. rev.ng is a decompiler in beta. Use only as a later optimization idea. [Sourced] |
+| **Rosetta** | n/a | Useful as a baseline only; ends with macOS 28, and fixed low addresses fail under it. |
 
-- The first 4 GB of the address space is deliberately unmapped on both x86-64 and arm64, so truncated 32-bit pointers crash instead of corrupting memory. `MAP_FIXED` below 4 GB fails and `MAP_32BIT` doesn't exist (Apple Developer Forums).
-- On an M4 Max, a shadPS4 contributor measured further reserved ranges: a commpage at `0xFC0000000` to `0xFFFFFFFFF` and a GPU carveout of roughly `0x1000000000` to `0x6FC0000000`. User mappings start around `0x7000000000`. `MAP_FIXED` into the gap returns `ENOMEM`. (shadPS4 issue 4157)
-- A second report tested `MAP_FIXED` at `0x1000000000` on native arm64 as well as Rosetta and got `ENOMEM` for every size. (shadPS4 issue 4694)
+**Strategy:** FEXCore JIT first, with a persistent translation cache. Only consider ahead-of-time translation after real profiling of real titles. [Inference]
 
-### What PS5 titles do [Sourced]
+### Memory ordering (the main risk)
 
-- Some titles (Stray, Biomutant per the Ryty thread) are linked at low addresses, starting at or near 0, and are **not position-independent**.
-- The Ryty author found that under Rosetta only a classic 4 GB `__PAGEZERO` layout loads at all, and `MAP_FIXED` fails below about `0x10000000`. A contributor concluded such titles cannot be mapped inside a Rosetta process.
-- shadPS4 titles such as GTA V (fixed mapping near `0x1307200000`) and The Last of Us (PRT aperture at `0x1000000000`) crash because the OS won't grant the requested address. Maintainers say there is no general fix, since many games hardcode these addresses. shadPS4 uses identity-mapped guest and host addresses, so honoring them would need a real translation layer.
+- x86 is TSO; ARM is weakly ordered. Apple silicon implements an x86-style TSO mode in hardware, which is credited for Rosetta's performance. [Sourced]
+- **Linux patches** show the bit (`ACTLR.TSOEN`) can be set and context-switched by a kernel, including for virtualized Linux on Apple silicon. FEX can use it where the kernel allows. [Sourced]
+- **I found no public macOS API for third-party processes to enable it.** [Unverified: absence of evidence]
+- **Without it,** FEX's own notes say its software memory-model emulation (atomics plus LRCPC) "absolutely demolishes performance," and users often turn it off, which risks crashes (Unity games especially). Write-combined GPU memory is an extreme worst case; unified-memory systems fare much better. [Sourced]
+- **Implication:** build a microbenchmark and a TSO strategy early. Options: software ordering for shared pages only, per-title configuration, or (long shot) a Linux-VM host that can use hardware TSO. [Inference]
 
-### Options
+### Other CPU facts
 
-| Option | Verdict |
-|---|---|
-| **A. Translate every guest address** (`host = base + guest`) inside the translated code | **Recommended.** The only approach that handles low-address and GPU-aperture titles. Costs an add per memory access, which can fold into ARM64 addressing modes. [Inference] |
-| B. Relink and rebase the binary | Fails for non-PIE titles with absolute addresses, unless the recompiler patches every absolute reference. High effort. |
-| C. Run an ARM64 Linux VM (Hypervisor/Virtualization framework) with an x86 translator inside | A Linux guest kernel can map low addresses. But there is no obvious path to give the VM direct Metal access, and I could not verify Rosetta-for-Linux limits (fetch failed). Worth a later spike, not a base design. [Unverified] |
-| D. Rosetta with a shrunk `__PAGEZERO` | Works only for titles that fit above roughly `0x10000000`. Doesn't solve the deprecation clock. |
+- **AVX/AVX2:** FEX's AVX work targets 128-bit ASIMD on Apple cores; Apple chips lack SVE2 256-bit, which blocked an earlier approach. [Sourced]
+- **AMD-only instructions:** real PS5 code uses them (AnyPS5 maintains converters and tests for SSE4a, CLZERO and others). Verify FEXCore handles or can lower each one. [Sourced + Unverified]
+- **JIT rules:** one `MAP_JIT` region under the Hardened Runtime, per-thread write-xor-execute, `sys_icache_invalidate` before executing. [Sourced]
+- **Page size:** Apple silicon uses 16 KB pages; upstream FEX expected 4 KB, which is why a VM or the Darwin fork was needed. [Sourced]
 
-**Design consequence for A:** reserve one large `PROT_NONE` window and treat guest addresses as offsets into it. Guest pointers up to 32 bits map cheaply (ARM64 supports a zero-extended 32-bit index register in addressing modes). Higher guest addresses need an explicit add. [Inference]
+## 5. Address space
 
-**First spike:** empirically measure how large a `PROT_NONE` reservation macOS arm64 grants on this machine, and where. Don't design around a number until this is run.
+- macOS leaves the first 4 GB unmapped, and further ranges (commpage, a GPU carveout of roughly `0x1000000000` to `0x6FC0000000`) are unavailable to user mappings. `MAP_FIXED` there fails with `ENOMEM`, natively and under Rosetta. [Sourced]
+- Some PS5 titles link at address zero and are not position-independent. [Sourced]
+- **Design:** reserve one large window and treat guest addresses as offsets into it (what the Darwin FEX fork does). Guest-visible GPU apertures then work too, because they are just guest offsets. [Sourced + Inference]
+- **Consequence for the relinker:** on macOS we do not produce a Mach-O copy of the game. We produce a *prepared prefix* (converted modules plus metadata) and a **runner** that maps it into the window. [Inference]
 
-## 5. CPU bridge
+## 6. HLE libraries: how guest code reaches native code
 
-### Constraints
+AnyPS5's libraries are x86-64 System V shared libraries that run natively beside the game. On an ARM host there are two ways to reuse them:
 
-- **Guest ISA:** Zen 2 x86-64, so AVX/AVX2 and BMI are in play. AnyPS5's test suite also covers AMD-only instructions (SSE4A EXTRQ/INSERTQ, CLZERO) that any translator must handle. [Sourced]
-- **Rosetta and AVX/BMI:** evidence is inconclusive. A Stockfish report shows an AVX2-built binary dying on macOS 15.1.1 under Rosetta at a `blsrq` (BMI1) instruction. That specific instruction isn't AVX, so it doesn't settle AVX support. [Sourced, inconclusive]
-- **Hypervisor.framework** runs ARM64 guests only. It cannot execute x86 code, so it is not a CPU bridge on its own. [Inference]
-- **Memory ordering:** x86 is TSO; ARM is weakly ordered. Apple CPUs have a hardware TSO switch (`ACTLR.TSOEN`), and Linux patches expose it to x86 emulators. On macOS the bit was only modifiable on 14.4+ in that test setup. [Sourced] I found **no public macOS API** for third parties to enable it. Plan for software ordering (acquire/release forms or barriers). [Unverified]
-- **Page size:** Apple Silicon uses 16 KB pages. Box64 added 16K-page support for Linux on Apple Silicon. [Sourced]
+1. **Run them through the translator too.** Simple, but they are built against a host Linux or Windows userland (libc, pthread, SDL, Vulkan). Under translation they would need a whole x86 userland. Not attractive. [Inference]
+2. **Recompile the library sources natively for macOS ARM64 and call them via thunks.** Each guest call crosses an ABI boundary: System V AMD64 (integers in `rdi, rsi, rdx, rcx, r8, r9`, floats in `xmm0-7`) to AAPCS64 (`x0-x7`, `v0-v7`), plus varargs, struct passing, stack alignment, TLS, and callbacks from native code back into guest code. FEX and Box64 both use generated thunks or wrapped libraries for exactly this. **Recommended.** [Inference; Box64 approach Sourced]
 
-### JIT rules on macOS [Sourced, Apple documentation]
-
-- Use `mmap` with `MAP_JIT`. Under the Hardened Runtime you need the `com.apple.security.cs.allow-jit` entitlement, and Apple's page says only one `MAP_JIT` region can be created. Allocate one big region up front.
-- Apple Silicon enforces write-xor-execute per thread. Write via `pthread_jit_write_with_callback_np` (needs the `jit-write-allowlist` entitlement) or `pthread_jit_write_protect_np`, and call `sys_icache_invalidate` before executing.
-- A command-line tool must be signed (ad-hoc is enough locally) with these entitlements.
-
-### Candidate strategies
-
-| Strategy | Notes |
-|---|---|
-| Rosetta | Fastest to prototype, short-lived, and blocked by the address problem for low-address titles. Use only as a comparison baseline. |
-| Adapt FEX-Emu or Box64 | Both are Linux-oriented. A macOS FEX fork exists but I could not establish its status. Heavy porting; unclear fit with address translation. [Sourced: fork exists] |
-| **Own translator, ahead-of-time with JIT fallback** | **Recommended direction.** Retail PS5 games generally don't generate code at runtime, so most of an executable could be translated offline and cached, with a dynamic translator only for indirect-jump misses. [Unverified: depends on titles; verify on real binaries] |
-
-**First CPU spike:** a minimal x86-64 integer-subset translator running a hand-assembled test through the address-translation window. Measure instruction expansion and decide AOT versus JIT with data.
-
-## 6. System layer
-
-- **Loader:** the ELF parser exists. Next: map `PT_LOAD` segments into the guest window, parse `PT_DYNAMIC` and `PT_SCE_DYNLIBDATA`, apply relocations, build import and export tables.
-- **Symbol IDs:** the PS4 library documentation project catalogs symbols by numeric id per module and library. [Sourced] How ids are computed wasn't covered; check OpenOrbis documentation. [Unverified]
-- **HLE modules:** libkernel first (memory, threads, synchronization, time, files), then video-out, pad, user service, audio-out. Kyty and SharpEmu both take the in-process HLE route. [Sourced]
-- **PS5-specific:** SharpEmu lists Fiber and AMPR exports. AMPR is Sony's storage and async-I/O machinery. The PS5's streaming-oriented I/O is cited as a hard part to reproduce. [Sourced]
-- **Threads and TLS:** x86 uses an FS segment for thread-local storage; ARM64 has no equivalent. A translator must map guest TLS to a reserved register or `TPIDR_EL0`. [Inference]
-- **Unresolved imports** should trap loudly with the symbol id, so gaps are easy to find.
+Known gotchas to plan for: guest `wchar_t` is 16 bits while the host's is 32 (AnyPS5 already hit this), thread cancellation is not modeled, `PTHREAD_PROCESS_SHARED` semantics are unclear, and the libraries need host abstraction for Linux/Windows specifics (futex-like waits, `mmap`, signals). [Sourced]
 
 ## 7. Graphics
 
-### Pipeline
+- **Pipeline** (as AnyPS5): AGC submission, PM4 execution, shader recompile, pipeline build. Reuse the recompiler front end (RDNA decode, IR, SPIR-V) rather than rewriting it. AMD publishes the RDNA 2 ISA guide. [Sourced]
+- **Stage 1 on macOS:** SPIR-V through MoltenVK. Both KytyPS5 and SharpEmu already do this on macOS. [Sourced]
+- **Stage 2:** an MSL backend on the same IR (SPIRV-Cross as a stopgap, direct emission later) to drop the Vulkan layer. [Inference]
+- **Apple GPU features** (M1-M5): tessellation (factor 64), mesh shaders, ray tracing, BC textures (guaranteed on Apple9+), sparse textures, argument buffers tier 2, programmable blending, raster order groups. Geometry shaders are not listed. [Sourced]
+- **TBDR differences:** multi-pass renderers that bounce through memory may need restructuring; custom blending needs raster order groups. [Sourced, one blog]
+- **Known recompiler gaps** (AnyPS5): barycentrics skipped, `v_fma_f64` not fully exact for subnormals, some AGC signatures unknown. Dead Cells needs MRT and RGBA16F. [Sourced]
+- **Descriptors:** AMD-style descriptors in memory must be translated to Metal argument buffers per draw. [Inference]
 
-Command stream decode, then state tracking, then shader recompilation, then Metal submission. Kyty's recompiler is a useful reference for the shape: instruction decoder, IR, control flow, resource tracking, SPIR-V emission, driven by AMD's RDNA 2 ISA guide. [Sourced]
+## 8. Input, audio, performance
 
-AMD publishes the RDNA 2 ISA reference as a PDF (`amd.com/system/files/TechDocs/rdna2-shader-instruction-set-architecture.pdf`). [Sourced]
+- **Input:** AnyPS5 uses SDL mappings plus an `anyps5-input.ini`. On macOS, use the GameController framework for DualSense features (touchpad, adaptive triggers, motion), with SDL as a baseline. [Sourced]
+- **Audio:** AnyPS5 ships a software NGS2 engine for Dead Cells; 3D audio is silent. Core Audio backend still to research. [Sourced]
+- **Performance tooling:** Metal Performance HUD via `MTL_HUD_ENABLED=1` (plus logging variables) or Info.plist; Metal counter sample buffers for GPU timing (note: the HUD's encoder timing is unavailable if the app uses counter buffers itself). Build our own telemetry from day one: frame time from guest flips, translator cache stats, shader compile counts, unimplemented-import counters, `os_signpost`. [Sourced + Inference]
 
-### Shader path decision
+## 9. Licensing and legal
 
-- **Stepping stone:** RDNA 2 to your own IR, then SPIR-V, then MSL via SPIRV-Cross. This mirrors what existing emulators do and de-risks the front end.
-- **Later:** direct MSL emission from the IR, dropping the SPIR-V hop and MoltenVK. This is where "direct to Metal" actually pays off. Apple's Metal Shader Converter targets DXIL (D3D), not SPIR-V or RDNA, so it isn't a shortcut. [Inference from general knowledge]
-- **Front-end reuse:** the IR and recompiler front end can be shared between SPIR-V and MSL back ends. Design the IR once.
+| Component | License |
+|---|---|
+| AnyPS5, Ryty, PortPS5 | GPL-2.0-only |
+| shadPS4, SharpEmu | GPL-2.0 |
+| Highball | GPL-3.0 (cannot mix code with GPL-2.0-only) |
+| FEX-Emu, Box64 | MIT |
+| Remill | Apache-2.0 (the FSF treats Apache-2.0 as incompatible with GPL-2.0-only; LLVM itself carries an exception, Remill's page lists plain Apache-2.0) |
 
-### What Apple GPUs support [Sourced, Metal feature set tables]
+- **Recommendation:** if ArmStation vendors AnyPS5 libraries or shader code, release it as **GPL-2.0-only**. MIT code (FEXCore) combines fine into it. This also lets us upstream fixes. Avoid Apache-2.0-only dependencies in the GPL core. This is not legal advice.
+- **Posture:** like AnyPS5, ship no firmware, keys, Sony headers or games, and accept only user-supplied, already-decrypted binaries. The DMCA section 1201 anti-circumvention rule is the main exposure; keep decryption entirely out of scope. [Sourced context]
+- AnyPS5's contribution rules don't state a clean-room policy. We should write our own and avoid leaked or proprietary Sony material.
 
-Tessellation (max factor 64), mesh shaders, ray tracing (compute and render pipelines), BC texture compression (all Apple9+ and all Apple7/8 Macs), sparse textures, argument buffers tier 2, programmable blending and raster order groups. The document does not list geometry shaders. Check runtime capability rather than hardcoding by chip. M1 is Apple7, M2 Apple8, M3/M4 Apple9, M5 Apple10.
+## 10. Strategy options
 
-### Hard problems [Inference unless noted]
+| Option | Pros | Cons |
+|---|---|---|
+| **A. Fork AnyPS5/Ryty, add an ARM host** | Fastest to first pixels; shared fixes | Inherit their architecture; macOS needs deep surgery; heavy rebasing |
+| **B. New host runtime that vendors AnyPS5 libs and recompiler as submodules (recommended)** | Our code is the new part (runner, FEXCore bridge, window memory, thunks, Metal); upstream stays upstream | Needs upstream cooperation on host abstraction |
+| C. Write everything from scratch | Clean slate | Years of duplicated work; not recommended |
 
-- **Tile-based deferred rendering.** Apple's GPU is TBDR; the PS5's is immediate-mode. Multi-pass renderers that bounce intermediates through memory may need restructuring, and fragment code that assumes ordered read-modify-write across overlapping primitives (custom blending) needs raster order groups. [Sourced, one blog]
-- **Descriptors in memory.** AMD-style shaders fetch resource descriptors from memory. Metal's argument buffers use their own opaque format, so descriptors must be translated per draw.
-- **Shared memory model.** Games assume CPU and GPU see the same memory. shadPS4's optional "readbacks" exist to emulate this and are costly. [Sourced] Apple's unified memory helps, but the GPU address carveout means guest GPU-visible addresses also go through translation (section 4).
-- **Shader compile stalls.** shadPS4's shader cache (v0.13.0) improved performance. Plan a persistent shader cache early. [Sourced]
-- **Missing stages.** Games using geometry-shader-like behavior need emulation on mesh shaders or compute. [Inference]
+**Talk to the AnyPS5 maintainers early** about a host-abstraction layer in the libraries. Their cooperation determines how painful option B is. [Inference]
 
-## 8. Input
+## 11. Language
 
-- Apple's `GCDualSenseGamepad` (macOS 11.3+) exposes the touchpad button, two-finger touch positions, adaptive triggers with dynamic resistance, and motion. It inherits the extended gamepad profile. [Sourced]
-- Haptics and lightbar: Apple also provides `GCController.haptics` (CoreHaptics) and light control. I could not retrieve the documentation, so confirm capabilities, especially for the DualSense's audio-driven haptics. [Unverified]
-- **Plan:** GameController framework as the primary backend (also covers Xbox and other pads). Map it to the guest's pad library (libScePad-style API): buttons, sticks, analog triggers, touchpad, motion, trigger effects, rumble. If the framework can't reach a feature, raw HID is the fallback. [Inference]
-- Add keyboard and mouse mapping for users without a pad.
+The ecosystem points to **C++20 with CMake** for the core: FEXCore has no stable C API, AnyPS5's libraries and shader recompiler are C++20, and thunk generation and ABI work sit right on that boundary. Rust is a good fit for the standalone ELF/NID inspection tooling we already wrote, but forcing Rust through a C++ FFI for the runner would add friction for little gain. **Decision needed from you:** keep the Rust crates as an inspection tool and start the runner in C++, or restructure everything around C++. [Inference]
 
-## 9. Performance and observability
-
-- **Metal Performance HUD** [Sourced]: shows device, resolution, memory, FPS, GPU time and a frame-interval graph. Enable with `MTL_HUD_ENABLED=1`, per-frame logging with `MTL_HUD_LOG_ENABLED=1`, and shader-compile logging with `MTL_HUD_LOG_SHADER_ENABLED=1`. It can also be enabled from `Info.plist` (`MetalHudEnabled`) or user defaults.
-- **Counter sampling** [Sourced]: Metal exposes counter sets and counter sample buffers for GPU timestamps and statistics. Caveat from Apple's page: the HUD's encoder-timing feature is unavailable if your app uses counter sample buffers itself. Decide up front which tool owns GPU timing.
-- **Frame pacing:** `CAMetalDisplayLink` (macOS 14+) is the likely mechanism for display-synchronized presentation. [Unverified: documentation page didn't load]
-- **Own telemetry (build early):**
-  - Frame time, drawn from the guest's flip events.
-  - Translator stats: blocks translated, cache hit rate, indirect-branch misses.
-  - Shader compile counts and times, plus cache hits.
-  - Guest syscall and unimplemented-import counters.
-  - `os_signpost` for Instruments, and a JSON trace export.
-- **Guest timers** (TSC reads, process time) must be backed by `mach_absolute_time` with correct scaling, or frame pacing and game logic break. [Inference]
-
-## 10. Legal and licensing
-
-- Emulators are lawful to write; circumvention of encryption (DMCA section 1201) is the exposure. ArmStation accepts only already-decrypted ELF and ships no keys, firmware or game content. Keep it that way. Public reporting notes lawful dumping is fragmented and that anti-circumvention exemptions don't give consumers a blanket right. [Sourced: asoasis]
-- **License decision needed.** shadPS4 is GPLv2 and SharpEmu is GPL-2.0. [Sourced] I did not confirm Kyty's license. Reusing any of their source, including shader recompiler logic, makes ArmStation GPL. Options: (a) relicense ArmStation GPLv2 and reuse freely; (b) stay MIT and work clean-room from public specs (the AMD ISA guide, observed behavior). Pick before writing more than glue code.
-- Name and branding: see the trademark notes in the project history; keep the non-affiliation notice.
-
-## 11. Proposed build order
-
-Spike first, commit later. Each milestone has an exit test.
+## 12. Revised milestones
 
 | # | Milestone | Exit criterion |
 |---|---|---|
-| 0 | **Address-space spike** | Measured map of what a macOS arm64 process can reserve; guest window design chosen |
-| 1 | Loader complete | Dynamic section, relocations, import/export tables parsed on real or homebrew ELFs |
-| 2 | CPU spike | Integer-subset translator runs a hand-built guest through the translation window; AOT versus JIT decided with numbers |
-| 3 | libkernel HLE minimum | A trivial homebrew prints through stubbed syscalls |
-| 4 | Presentation | Guest flip drives a Metal layer; solid-color then framebuffer output |
-| 5 | Command decode and first shader | One triangle from a homebrew sample |
-| 6 | Shader recompiler breadth | Shader cache, descriptor translation, TBDR-aware pass handling |
-| 7 | Input and audio | DualSense via GameController; basic audio-out |
-| 8 | Telemetry (parallel from milestone 2) | HUD, translator stats and frame-time trace available |
+| 0a | **FEXCore-on-macOS spike** | Build the Darwin FEX fork on your M3 Max; run a trivial static x86-64 ELF |
+| 0b | **TSO microbenchmark** | Measure software-ordering cost on this machine; pick a strategy |
+| 0c | **Window spike** | Confirm how large a reservation macOS grants; choose the guest window |
+| 1 | Build AnyPS5's relinker and libraries for macOS ARM64 | Relinker runs; libraries compile natively |
+| 2 | Runner loads a converted guest into the window under FEXCore | Guest reaches `main` and returns |
+| 3 | Thunk generator plus libkernel/libc subset | A trivial title prints via HLE |
+| 4 | First 2D title bring-up | A compatibility-list 2D title (e.g., Dreaming Sarah, user-supplied) reaches gameplay |
+| 5 | Graphics stage 1 (MoltenVK) | Same title renders |
+| 6 | Persistent translation cache, TSO tuning, telemetry | Frame times stable and measurable |
+| 7 | Metal backend, DualSense features, audio | Parity with stage 1 plus controller features |
 
-**Kill criteria:** if milestone 0 shows macOS cannot grant a window big enough for the guest layouts, or milestone 2 shows an unusable translation overhead, revisit option C (Linux VM) before investing further.
+**Kill criteria:** if 0a fails to run guest code on macOS, or 0b shows ordering costs make 2D titles unplayable, reassess the Linux-VM host option (which can use hardware TSO but complicates graphics) before continuing.
 
-## 12. Not yet researched
+## 13. Not yet researched or unverified
 
-- Audio: Tempest 3D audio, audio-out semantics, Core Audio mapping.
-- PS5 kernel syscall ABI and libkernel specifics; how symbol ids are computed (OpenOrbis docs).
-- AGC command stream details and PM4-style packet formats.
-- Storage and I/O: AMPR, asset decompression.
-- Rosetta-for-Linux-VM capabilities (AVX, TSO), needed to evaluate option C.
-- Exact `CAMetalDisplayLink` and `GCController.haptics` behavior (pages didn't load).
-- Save data, networking, trophies, user management stubs.
-- Kyty's license.
+- Whether macOS exposes hardware TSO to third-party processes in any form.
+- FEXCore's handling of each AMD-only instruction PS5 code uses.
+- Ryty's Metal bridge design (documentation not accessible).
+- Rosetta-for-Linux-VM capabilities and the CodeWeavers technical post (pages did not load).
+- PS5 kernel ABI details, AGC packet formats, AMPR and storage behavior.
+- Core Audio mapping and Tempest 3D audio.
+- Whether upstream AnyPS5 would accept host-abstraction changes.
 
-## 13. Sources
+## 14. Sources
 
-- shadPS4 overview: https://en.wikipedia.org/wiki/ShadPS4
-- shadPS4 macOS address-space issues: https://github.com/shadps4-emu/shadPS4/issues/4157 and https://github.com/shadps4-emu/shadPS4/issues/4694
-- Ryty macOS relinker thread: https://github.com/aarvsn/Ryty/issues/9
-- AnyPS5 test PR (macOS, Rosetta, zero page): https://github.com/boykopovar/AnyPS5/pull/6524
-- KytyPS5 wiki: https://github.com/Jetsku/KytyPS5/wiki
-- SharpEmu repository: https://github.com/GACWR/sharpemu
-- SharpEmu results (Tom's Hardware): https://www.tomshardware.com/desktops/gaming-pcs/ps5-emulator-successfully-runs-six-titles-at-a-playable-60-fps-ps5-emulation-continues-to-gather-momentum-as-developers-improve-shader-translation-and-vulkan-support
-- PS5 emulation overview: https://asoasis.tech/news/2026-09-28-2039-ps5-emulation/
-- Rosetta end of life report: https://www.techrepublic.com/article/news-apple-macos-27-drops-intel-mac-support-rosetta/
-- Rosetta and AVX2 report: https://github.com/official-stockfish/Stockfish/issues/5707
-- macOS low-memory restriction: https://developer.apple.com/forums/thread/781966
-- Apple Silicon TSO patches: https://lkml.iu.edu/hypermail/linux/kernel/2404.1/04656.html
-- Box64 16K pages: https://www.phoronix.com/news/Box64-0.2.8-Released
-- FEX macOS fork: https://github.com/Jpkovas/FEX_MacOs
+- AnyPS5 repository: https://github.com/boykopovar/AnyPS5
+- AnyPS5 architecture, technical debt, build, usage and contribution docs: https://github.com/boykopovar/AnyPS5/blob/main/docs/dev/ARCHITECTURE.md , https://github.com/boykopovar/AnyPS5/blob/main/docs/dev/TechnicalDebt.md , https://github.com/boykopovar/AnyPS5/blob/main/docs/dev/BUILD.md , https://github.com/boykopovar/AnyPS5/blob/main/docs/user/USAGE.md , https://github.com/boykopovar/AnyPS5/blob/main/CONTRIBUTING.md
+- Ryty: https://github.com/aarvsn/Ryty and https://github.com/aarvsn/Ryty/issues/9
+- PortPS5: https://github.com/ymatrix1/PortPS5/wiki
+- AnyPS5 explainers: https://pasqualepillitteri.it/en/news/21731/anyps5-ps5-games-windows-linux , https://explainx.ai/blog/anyps5-ps5-games-native-pc-no-emulator-how-relinking-works-2026
+- Dead Cells native port: https://godisageek.com/2026/09/dead-cells-ps5-native-windows-port/
+- FEX-Emu: https://github.com/FEX-Emu/FEX and discussion https://github.com/FEX-Emu/FEX/discussions/3267
+- FEX Darwin port (community fork): https://github.com/Zagrios/FEX
+- FEX hardware TSO release notes: https://fex-emu.com/FEX-2306/
+- Box64: https://github.com/ptitSeb/box64 and https://www.heise.de/en/news/Box64-0-3-0-x86-64-emulator-for-Linux-supports-AVX-and-AVX2-9797911.html
+- CrossOver ARM64 preview coverage: https://www.ithinkdiff.com/?p=343215
+- CodeWeavers PortJump update: https://www.codeweavers.com/blog/orudge/2026/6/19/portjump-update-upcoming-changes-to-macos-support-for-intel-based-applications
+- Highball: https://iphonesoft.fr/2026/10/06/highball-nouvelle-solution-jouer-jeux-windows-mac
+- Elevator static translation: https://arxiv.org/abs/2605.08419
+- Remill: https://github.com/lifting-bits/remill
+- rev.ng: https://rev.ng/blog/open-sourcing-renvg-decompiler-ui-closed-beta
+- Memory-model emulation: https://hackaday.com/2026/09/19/emulating-memory-access-how-hard-can-it-be/
+- Apple silicon TSO patches: https://lkml.iu.edu/hypermail/linux/kernel/2404.1/04656.html
+- Rosetta timeline report: https://www.techrepublic.com/article/news-apple-macos-27-drops-intel-mac-support-rosetta/
+- macOS address space: https://developer.apple.com/forums/thread/781966 , https://github.com/shadps4-emu/shadPS4/issues/4157 , https://github.com/shadps4-emu/shadPS4/issues/4694
 - Apple JIT guidance: https://developer.apple.com/documentation/apple-silicon/porting-just-in-time-compilers-to-apple-silicon
 - Metal feature set tables: https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
 - Apple GPU TBDR notes: https://blakecrosley.com/blog/apple-silicon-tbdr
 - AMD RDNA 2 ISA: https://gpuopen.com/rdna2-isa-available/
 - DualSense in GameController: https://developer.apple.com/documentation/gamecontroller/gcdualsensegamepad
-- Metal Performance HUD: https://developer.apple.com/documentation/xcode/monitoring-your-metal-apps-graphics-performance
-- Metal GPU counters: https://developer.apple.com/documentation/metal/gpu-counters-and-counter-sample-buffers
-- PS4 library documentation format: https://github.com/Inori/ps4libdoc
+- Metal Performance HUD and counters: https://developer.apple.com/documentation/xcode/monitoring-your-metal-apps-graphics-performance , https://developer.apple.com/documentation/metal/gpu-counters-and-counter-sample-buffers
