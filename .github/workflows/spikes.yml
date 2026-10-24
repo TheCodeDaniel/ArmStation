@@ -1,0 +1,21 @@
+name: spikes
+on:
+  workflow_dispatch:
+  push:
+    paths: ['spikes/**', '.github/workflows/spikes.yml']
+jobs:
+  macos-arm64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host info
+        run: |
+          uname -m; sw_vers; sysctl -n machdep.cpu.brand_string
+          sysctl hw.optional.arm.FEAT_LRCPC hw.optional.arm.FEAT_LSE 2>&1 || true
+          sysctl hw.ncpu hw.memsize
+      - name: Build
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release 2>&1 || (brew install ninja && cmake -S . -B build -G Ninja && true); cmake --build build
+      - name: address_space_probe
+        run: ./build/spikes/address_space_probe
+      - name: tso_bench
+        run: ./build/spikes/tso_bench
