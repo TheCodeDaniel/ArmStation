@@ -190,3 +190,34 @@ The ecosystem points to **C++20 with CMake** for the core: FEXCore has no stable
 - AMD RDNA 2 ISA: https://gpuopen.com/rdna2-isa-available/
 - DualSense in GameController: https://developer.apple.com/documentation/gamecontroller/gcdualsensegamepad
 - Metal Performance HUD and counters: https://developer.apple.com/documentation/xcode/monitoring-your-metal-apps-graphics-performance , https://developer.apple.com/documentation/metal/gpu-counters-and-counter-sample-buffers
+
+---
+
+## 13. Round 2b: community prior art, test reality, and what changed
+
+Sources are public repos and reports; items I could not open are marked unverified.
+
+**Overlap with existing ARM work.** Community macOS builds of AnyPS5 already exist, all running x86-64 under Rosetta 2 plus MoltenVK. One fork (`utkuhalis/AnyPS5-ARM`, branch `native-arm64`) goes further: it translates guest code ahead of time (Capstone to LLVM IR to arm64), identity-maps guest memory, and reports homebrew DOOM playing natively with no Rosetta. Its own roadmap lists the hard parts we also identified: setjmp/longjmp and exception landing pads, memory ordering, variadic and `long double` bridges. Its measurements also say real 3D titles are CPU/driver-bound (Stray ~100-150 ms/frame, GPU busy ~41-45 ms), so the graphics backend is not the first bottleneck.
+
+**Design tradeoff.**
+
+| | Guest window + JIT (FEXCore, ours) | Identity map + AOT (`native-arm64`) |
+|---|---|---|
+| Guest addresses | `host = GuestBase + guest`; works around the unmapped low 4 GB | Same values as host; cannot host low-linked images |
+| Code | Runtime JIT, handles self-modifying code and late-loaded modules | Ahead of time; unknown indirect targets stop the process |
+| Ordering | Software TSO via atomics/LRCPC, cost unmeasured | Acquire/release option, cost unmeasured |
+| Maturity | FEXCore is mature; macOS fork is a community port | Early; small number of fixtures |
+
+We keep the window + JIT design as the primary path because it handles the low-address and dynamic-code cases; the spikes exist to falsify that choice cheaply.
+
+**Rosetta gaps** (from community reports, unverified by us): no SSE4a or ADX; faults on RDSEED, CLWB, RDPID. FEXCore's decoder tables contain these opcodes, which is encouraging but not proof of correct behavior.
+
+**Metal/MoltenVK gaps:** no f64, 64-bit atomics or shader clock in Metal; MoltenVK has a SPIRV-Cross loop-continue bug and lacks unrestricted depth range. These constrain the shader recompiler's output.
+
+**Legal.** Yuzu's maker settled for $2.4M on anti-circumvention claims even though it shipped no keys, so ArmStation stays strictly on decrypted input and ships no decryption. Sony has reportedly not acted against AnyPS5. This is not legal advice.
+
+**Reported compatibility reality:** 2D indie titles reach 55-60 fps on high-end PCs; independent tests of other PS5 projects found no stable play in a six-game sample. Expect a long tail.
+
+**Strategy change.** Rather than compete, ArmStation should position itself as the Rosetta-free runtime that vendors AnyPS5's libraries and recompiler (GPL-2.0-only, hence our license) and coordinate with the `native-arm64` maintainer. Outreach is something I can draft; nothing has been posted.
+
+**Timeline (my estimate):** spikes, days; hello-world guest through the translator, weeks; a playable 2D title, months; AAA 3D, years.

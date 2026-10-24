@@ -61,7 +61,7 @@ It prints the ELF header (machine, OS/ABI, type, entry point), all program heade
 The detailed version is in [docs/RESEARCH.md](docs/RESEARCH.md), section 12.
 
 **Spikes (decide before building)**
-- [ ] FEXCore on macOS: build the Darwin fork and run a trivial x86-64 ELF on Apple Silicon
+- [ ] FEXCore on macOS: build the Darwin fork and run a trivial x86-64 ELF on Apple Silicon (see [docs/SPIKES.md](docs/SPIKES.md))
 - [ ] Memory-ordering cost: measure x86 TSO emulation overhead on Apple Silicon
 - [ ] Guest window: measure what a macOS arm64 process can reserve
 
@@ -83,4 +83,4 @@ Issues and PRs are welcome. Do not attach or link copyrighted game content, keys
 
 ## License
 
-Currently MIT. This is expected to change: building on AnyPS5's GPL-2.0-only code would require GPL-2.0-only. See section 9 of [docs/RESEARCH.md](docs/RESEARCH.md). See [LICENSE](LICENSE).
+GPL-2.0-only. See [LICENSE](LICENSE). This keeps ArmStation compatible with AnyPS5's GPL-2.0-only relinker, system libraries and shader recompiler, which we intend to vendor as submodules rather than fork. (GPL-3.0 code such as Highball cannot be combined with it.) FEXCore is MIT and compatible.
