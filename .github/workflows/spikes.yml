@@ -1,21 +1,27 @@
 name: spikes
 on:
   workflow_dispatch:
-  push:
-    paths: ['spikes/**', '.github/workflows/spikes.yml']
+permissions:
+  contents: write
 jobs:
   macos-arm64:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-      - name: Host info
+      - name: Run spikes and record results
         run: |
-          uname -m; sw_vers; sysctl -n machdep.cpu.brand_string
-          sysctl hw.optional.arm.FEAT_LRCPC hw.optional.arm.FEAT_LSE 2>&1 || true
-          sysctl hw.ncpu hw.memsize
-      - name: Build
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release 2>&1 || (brew install ninja && cmake -S . -B build -G Ninja && true); cmake --build build
-      - name: address_space_probe
-        run: ./build/spikes/address_space_probe
-      - name: tso_bench
-        run: ./build/spikes/tso_bench
+          mkdir -p docs/spike-results
+          R=docs/spike-results/macos-arm64.txt
+          {
+            echo "## host"; uname -m; sw_vers; sysctl -n machdep.cpu.brand_string
+            sysctl hw.ncpu hw.memsize 2>&1
+            sysctl hw.optional.arm.FEAT_LRCPC hw.optional.arm.FEAT_LSE 2>&1
+            echo "## build"
+            c++ -std=c++20 -O2 -Wall -Wextra spikes/address_space_probe.cpp -o /tmp/asp 2>&1
+            c++ -std=c++20 -O2 -Wall -Wextra spikes/tso_bench.cpp -o /tmp/tso 2>&1
+            echo "## address_space_probe"; /tmp/asp 2>&1
+            echo "## tso_bench"; /tmp/tso 2>&1; /tmp/tso 2>&1
+          } > $R 2>&1 || true
+          cat $R
+          git config user.name "spikes-bot"; git config user.email "bot@users.noreply.github.com"
+          git add $R && git commit -m "Record spike results (macOS arm64 CI)" && git push
