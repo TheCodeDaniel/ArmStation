@@ -1,0 +1,58 @@
+## host
+arm64
+ProductName:		macOS
+ProductVersion:		14.8.9
+BuildVersion:		23J631
+Apple M1 (Virtual)
+hw.ncpu: 3
+hw.memsize: 7516192768
+hw.optional.arm.FEAT_LRCPC: 1
+hw.optional.arm.FEAT_LSE: 1
+## build
+spikes/tso_bench.cpp:27:25: error: no member named 'atomic_ref' in namespace 'std'
+      uint64_t v = std::atomic_ref<uint64_t>(a[i]).load(LD);
+                   ~~~~~^
+spikes/tso_bench.cpp:27:36: error: unexpected type name 'uint64_t': expected expression
+      uint64_t v = std::atomic_ref<uint64_t>(a[i]).load(LD);
+                                   ^
+spikes/tso_bench.cpp:27:51: error: member reference base type 'value_type' (aka 'unsigned long long') is not a structure or union
+      uint64_t v = std::atomic_ref<uint64_t>(a[i]).load(LD);
+                                            ~~~~~~^~~~~
+spikes/tso_bench.cpp:28:12: error: no member named 'atomic_ref' in namespace 'std'
+      std::atomic_ref<uint64_t>(b[i]).store(v + 1, ST);
+      ~~~~~^
+spikes/tso_bench.cpp:28:23: error: unexpected type name 'uint64_t': expected expression
+      std::atomic_ref<uint64_t>(b[i]).store(v + 1, ST);
+                      ^
+spikes/tso_bench.cpp:28:38: error: member reference base type 'value_type' (aka 'unsigned long long') is not a structure or union
+      std::atomic_ref<uint64_t>(b[i]).store(v + 1, ST);
+                               ~~~~~~^~~~~~
+spikes/tso_bench.cpp:38:14: error: no member named 'atomic_ref' in namespace 'std'
+    i = std::atomic_ref<const uint32_t>(next[i]).load(LD);
+        ~~~~~^
+spikes/tso_bench.cpp:38:25: error: expected expression
+    i = std::atomic_ref<const uint32_t>(next[i]).load(LD);
+                        ^
+spikes/tso_bench.cpp:34:50: warning: unused parameter 'next' [-Wunused-parameter]
+static double chase(const std::vector<uint32_t>& next, size_t steps) {
+                                                 ^
+1 warning and 8 errors generated.
+## address_space_probe
+address_space_probe: pointer bits=64
+[1] fixed low-address attempts (PS5 non-PIE images link near 0):
+  fixed page zero              0x000000000000 +0x100000: FAIL (Cannot allocate memory)
+  fixed 64K                    0x000000010000 +0x1000000: FAIL (Cannot allocate memory)
+  fixed 4M (typical ELF base)  0x000000400000 +0x1000000: FAIL (Cannot allocate memory)
+  fixed 4G                     0x000100000000 +0x10000000: FAIL (Cannot allocate memory)
+  fixed commpage region        0x000fc0000000 +0x1000000: FAIL (Cannot allocate memory)
+  fixed gpu carveout start     0x001000000000 +0x10000000: FAIL (Cannot allocate memory)
+[2] largest single PROT_NONE reservation:
+  97856 GiB (0x5f9000000000)
+[3] guest window: reserve 16 GiB, report base:
+  base=0x300000000
+[4] commit RW inside the window, then try a MAP_JIT page:
+  RW commit: ok
+  MAP_JIT:   ok (needs com.apple.security.cs.allow-jit when hardened)
+## tso_bench
+/Users/runner/work/_temp/be4fd1c5-fe0a-43ba-a3a7-416f002225da.sh: line 11: /tmp/tso: No such file or directory
+/Users/runner/work/_temp/be4fd1c5-fe0a-43ba-a3a7-416f002225da.sh: line 11: /tmp/tso: No such file or directory
