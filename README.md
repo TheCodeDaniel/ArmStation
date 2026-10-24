@@ -36,7 +36,9 @@ armstation/
 | Graphics | Translate PS5 GPU commands and shaders to Metal | Placeholder |
 | CPU bridge | Execute x86-64 guest code on ARM64 | Placeholder |
 
-The CPU bridge is deliberately left open: a user-space dynamic binary translator and a Hypervisor.framework approach have very different tradeoffs, and the `CpuBackend` trait exists so both can be tried and compared.
+The CPU bridge is deliberately left open. Hypervisor.framework only runs ARM64 guests, so the realistic candidates are an ahead-of-time or JIT x86-64 translator of our own, an adapted open-source translator, or Rosetta as a short-lived baseline. The `CpuBackend` trait exists so these can be compared with real numbers.
+
+A central design constraint is that macOS refuses to map the low 4 GB and a large GPU carveout, which PS5 titles expect to use, so guest addresses must be translated. See [docs/RESEARCH.md](docs/RESEARCH.md) for the findings and the recommended build order.
 
 ### Portability by design
 
@@ -85,7 +87,8 @@ Prints the ELF header (machine, OS/ABI, type, entry point), all program headers 
 - [ ] Filesystem and logging shims
 
 **Phase 3: CPU bridge**
-- [ ] Prototype and benchmark both execution strategies behind `CpuBackend`
+- [ ] Address-space spike: measure what a macOS arm64 process can reserve; design the guest window
+- [ ] Prototype and benchmark candidate execution strategies behind `CpuBackend`
 - [ ] Run a trivial hand-built x86-64 guest end to end
 - [ ] Guest thread model, TLS, signal/exception handling
 
@@ -112,4 +115,4 @@ Issues and PRs are welcome. Please run `cargo fmt`, `cargo clippy --workspace` a
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT for now. Reusing code from GPL-licensed emulators would change that; see section 10 of [docs/RESEARCH.md](docs/RESEARCH.md). See [LICENSE](LICENSE).
