@@ -1,0 +1,10 @@
+/target
+**/*.rs.bk
+.DS_Store
+
+# Never commit game content or dumps
+*.elf
+*.self
+*.bin
+*.prx
+*.sprx

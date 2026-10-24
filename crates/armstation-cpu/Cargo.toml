@@ -1,0 +1,12 @@
+[package]
+name = "armstation-cpu"
+description = "x86-64 execution backends on ARM64 (planned)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

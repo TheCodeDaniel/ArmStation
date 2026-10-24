@@ -1,0 +1,12 @@
+[package]
+name = "armstation-stubs"
+description = "High-level emulation of PS5 system libraries (libkernel, ...)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

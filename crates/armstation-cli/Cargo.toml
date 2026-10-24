@@ -1,0 +1,17 @@
+[package]
+name = "armstation-cli"
+description = "ArmStation command-line tool"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "armstation"
+path = "src/main.rs"
+
+[dependencies]
+armstation-loader = { path = "../armstation-loader" }
+
+[lints]
+workspace = true
