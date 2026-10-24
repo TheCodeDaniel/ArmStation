@@ -24,8 +24,8 @@ static double stream(std::vector<uint64_t>& a, std::vector<uint64_t>& b, int rep
   auto t0 = clk::now();
   for (int r = 0; r < reps; ++r)
     for (size_t i = 0; i < a.size(); ++i) {
-      uint64_t v = std::atomic_ref<uint64_t>(a[i]).load(LD);
-      std::atomic_ref<uint64_t>(b[i]).store(v + 1, ST);
+      uint64_t v = __atomic_load_n(&a[i], int(LD));
+      __atomic_store_n(&b[i], v + 1, int(ST));
     }
   return std::chrono::duration<double>(clk::now() - t0).count();
 }
@@ -35,7 +35,7 @@ static double chase(const std::vector<uint32_t>& next, size_t steps) {
   auto t0 = clk::now();
   uint32_t i = 0;
   for (size_t s = 0; s < steps; ++s)
-    i = std::atomic_ref<const uint32_t>(next[i]).load(LD);
+    i = __atomic_load_n(&next[i], int(LD));
   volatile uint32_t sink = i;
   (void)sink;
   return std::chrono::duration<double>(clk::now() - t0).count();
