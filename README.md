@@ -38,6 +38,10 @@ armstation/
 
 The CPU bridge is deliberately left open: a user-space dynamic binary translator and a Hypervisor.framework approach have very different tradeoffs, and the `CpuBackend` trait exists so both can be tried and compared.
 
+### Portability by design
+
+The name is deliberate: macOS on Apple Silicon is the first host, not the last. Longer term the goal is to run on other ARM64 hosts such as Windows on ARM and Linux on ARM64. To keep that door open, all host-specific code stays behind traits (`CpuBackend` for execution, and a graphics backend trait to come), and the loader and stubs layers must stay free of macOS-only APIs. Metal is the first graphics backend, not a permanent assumption.
+
 ## Building
 
 Requires macOS on Apple Silicon and a recent stable Rust toolchain.
@@ -93,6 +97,12 @@ Prints the ELF header (machine, OS/ABI, type, entry point), all program headers 
 **Phase 5: Everything else**
 - [ ] Audio, input, networking stubs
 - [ ] Performance work, compatibility database
+
+**Future: other ARM64 hosts**
+- [ ] Define a host-neutral graphics backend interface (Metal first)
+- [ ] Linux ARM64 host: Vulkan backend, native `mmap`-based memory manager
+- [ ] Windows on ARM host: D3D12 or Vulkan backend
+- [ ] CI builds for each host target
 
 Phases 3 and 4 are research-grade problems. Contributors with experience in emulators, binary translation or GPU ISAs are especially welcome.
 
