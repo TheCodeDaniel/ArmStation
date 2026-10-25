@@ -1,0 +1,17 @@
+## host
+ProductName:		macOS
+ProductVersion:		15.7.9
+BuildVersion:		24G830
+arm64
+Apple M1 (Virtual)
+## clone voile-lkd rc=0
+Cloning into '/private/tmp/v/fex/External/zydis/dependencies/zycore'...
+From https://github.com/zyantific/zycore-c
+ * branch            75a36c45ae1ad382b0f4e0ede0af84c11ee69928 -> FETCH_HEAD
+Submodule path 'fex/External/zydis/dependencies/zycore': checked out '75a36c45ae1ad382b0f4e0ede0af84c11ee69928'
+Submodule path 'fex/Source/Common/cpp-optparse': checked out '9f94388a339fcbb0bc95c17768eb786c85988f6e'
+AGENTS.md
+CLAUDE.md
+CMakeLists.txt
+CODE_OF_CONDUCT.md
+CodeEmitter
