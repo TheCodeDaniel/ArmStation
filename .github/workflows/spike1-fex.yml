@@ -9,21 +9,34 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - name: Build FEXCore (Darwin fork) and the voile-lkd host runner
+      - name: Build FEXCore (Darwin fork) + host runner, run x86-64 witnesses
         run: |
           set +e
           mkdir -p docs/spike-results; R=$PWD/docs/spike-results/spike1-fexcore.txt
           { echo "## host"; sw_vers; uname -m; sysctl -n machdep.cpu.brand_string; } > $R 2>&1
           brew install cmake ninja >/dev/null 2>&1
           git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/Zagrios/voile-lkd /tmp/v > /tmp/clone.log 2>&1
-          echo "## clone voile-lkd rc=$?" >> $R; tail -5 /tmp/clone.log >> $R
-          ls /tmp/v/fex | head -5 >> $R
+          echo "## clone rc=$?" >> $R
           cd /tmp/v
-          echo "## fexdarwin/scripts/build.sh" >> $R
-          JOBS=3 bash fexdarwin/scripts/build.sh > /tmp/build.log 2>&1
-          echo "rc=$?" >> $R
-          tail -40 /tmp/build.log >> $R
-          ls -la fexdarwin/build/host/fexdarwin-run >> $R 2>&1
-          cd - >/dev/null
+          echo "## lkd build" >> $R
+          bash lkd/build.sh lkd > /tmp/lkd.log 2>&1; echo "rc=$?" >> $R; tail -8 /tmp/lkd.log >> $R
+          echo "## fexdarwin build" >> $R
+          JOBS=3 bash fexdarwin/scripts/build.sh > /tmp/build.log 2>&1; echo "rc=$?" >> $R; tail -8 /tmp/build.log >> $R
+          RUN=fexdarwin/build/host/fexdarwin-run
+          ls -la $RUN >> $R 2>&1
+          echo "## features" >> $R; $RUN --features >> $R 2>&1
+          echo "## zig witnesses" >> $R
+          python3 -m venv tools/venv && tools/venv/bin/pip install ziglang > /tmp/zig.log 2>&1; echo "zig rc=$?" >> $R
+          mkdir -p evidence/fexcore-darwin
+          bash tests/elf-x86_64/build.sh tests/elf-x86_64/src/w01_hello.c tests/elf-x86_64/src/w02_int.c tests/elf-x86_64/src/w03_simd.c > /tmp/w.log 2>&1; echo "witness build rc=$?" >> $R; tail -6 /tmp/w.log >> $R
+          for w in w01_hello w02_int w03_simd; do
+            echo "## run $w" >> $R
+            timeout 60 $RUN --stats tests/elf-x86_64/bin/$w >> $R 2>&1; echo "exit=$?" >> $R
+          done
+          for t in 1 0; do
+            echo "## w02_int TSOENABLED=$t" >> $R
+            timeout 60 $RUN --stats --fex-config TSOENABLED=$t tests/elf-x86_64/bin/w02_int 2>&1 | tail -15 >> $R
+          done
+          cd $GITHUB_WORKSPACE
           git config user.name spikes-bot; git config user.email bot@users.noreply.github.com
-          git add docs/spike-results/spike1-fexcore.txt && git commit -m "Record spike 1 build result" && git push
+          git add docs/spike-results/spike1-fexcore.txt && git commit -m "Record spike 1 result" && git push
