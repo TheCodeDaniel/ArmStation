@@ -12,8 +12,8 @@ rc=0
 [78/84] Building C object CMakeFiles/lkd.dir/src/task/exec.c.o
 [79/84] Building C object CMakeFiles/lkd.dir/src/task/time.c.o
 [80/84] Building C object CMakeFiles/lkd.dir/src/task/sys.c.o
-[81/84] Building C object CMakeFiles/lkd.dir/src/task/tasks.c.o
-[82/84] Building C object CMakeFiles/lkd.dir/src/task/wait.c.o
+[81/84] Building C object CMakeFiles/lkd.dir/src/task/wait.c.o
+[82/84] Building C object CMakeFiles/lkd.dir/src/task/tasks.c.o
 [83/84] Linking C static library lib/liblkd.a
 ## fexdarwin build
 rc=0
@@ -24,8 +24,8 @@ rc=0
       |                                                             ^~~~~~~~~~~~
 1 warning generated.
 [16/16] Linking CXX executable fexdarwin-run
--rwxr-xr-x  1 runner  wheel  4029600 Oct 25 17:24 /tmp/v/fexdarwin/build/host/fexdarwin-run
--rwxr-xr-x  1 runner  wheel  4029600 Oct 25 17:24 fexdarwin/build/host/fexdarwin-run
+-rwxr-xr-x  1 runner  wheel  4029600 Oct 25 17:29 /tmp/v/fexdarwin/build/host/fexdarwin-run
+-rwxr-xr-x  1 runner  wheel  4029600 Oct 25 17:29 fexdarwin/build/host/fexdarwin-run
 ## features
 [fexdarwin] host features (sysctl hw.optional.arm.*):
   hw.optional.arm.FEAT_AES           1
@@ -63,15 +63,15 @@ d3664de739a8b3947e76fe03eb6d0f398310c968c070c182150a8b51c3843f63  /tmp/v/tests/e
 + /tmp/v/tools/venv/bin/python -m ziglang cc -target x86_64-linux-musl -static -nostdlib -ffreestanding -fno-stack-protector -fno-builtin -fPIE -O1 -g0 -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 -Wl,-z,norelro -Wl,--image-base=0x600000400000 -Wl,--build-id=none -mavx2 -mfma -mf16c -msse4.2 -mpclmul -maes -mpopcnt -ffp-contract=off -o bin/w03_simd src/w03_simd.c
 f72de7cb7473bb4ae2e68a7fc222722911616ab6b222c1eced6fe8617299c6d7  /tmp/v/tests/elf-x86_64/bin/w03_simd
 ## run w01_hello
-/Users/runner/work/_temp/64837935-a76b-45cc-955e-bcf4e477e35a.sh: line 21: timeout: command not found
-exit=127
+[fexdarwin] kernel placed the guest window at 0x600020000000 instead of 0x600000000000
+exit=70
 ## run w02_int
-/Users/runner/work/_temp/64837935-a76b-45cc-955e-bcf4e477e35a.sh: line 21: timeout: command not found
-exit=127
+[fexdarwin] kernel placed the guest window at 0x600020000000 instead of 0x600000000000
+exit=70
 ## run w03_simd
-/Users/runner/work/_temp/64837935-a76b-45cc-955e-bcf4e477e35a.sh: line 21: timeout: command not found
-exit=127
+[fexdarwin] kernel placed the guest window at 0x600020000000 instead of 0x600000000000
+exit=70
 ## w02_int TSOENABLED=1
-/Users/runner/work/_temp/64837935-a76b-45cc-955e-bcf4e477e35a.sh: line 25: timeout: command not found
+[fexdarwin] kernel placed the guest window at 0x600020000000 instead of 0x600000000000
 ## w02_int TSOENABLED=0
-/Users/runner/work/_temp/64837935-a76b-45cc-955e-bcf4e477e35a.sh: line 25: timeout: command not found
+[fexdarwin] kernel placed the guest window at 0x600020000000 instead of 0x600000000000
