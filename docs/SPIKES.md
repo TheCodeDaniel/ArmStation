@@ -46,3 +46,10 @@ Raw output: `docs/spike-results/macos-arm64.txt`. Re-run with the `spikes` workf
 ## Results on real hardware (MacBook Pro, Apple M3 Max)
 
 Raw output: `docs/spike-results/macbook-pro-m3max.txt`. Same conclusion for the address window (all low fixed mappings fail; commpage and GPU-carveout starts return EACCES rather than ENOMEM; 16 GiB window and MAP_JIT work). Ordering floor is lower than on the CI VM: acquire/release 1.07-1.14x, seq_cst 1.16x. This is still only a floor; FEXCore on a real guest is the deciding measurement.
+
+## Spike 1 status (CI, macOS 15 arm64 VM)
+
+Raw output: `docs/spike-results/spike1-fexcore.txt`; workflow `spike1-fex`.
+
+- **Builds:** FEXCore (Darwin fork) builds as `libFEXCore.a`, `liblkd.a` builds, and the host runner `fexdarwin-run` links. The runner reports LSE, LRCPC and LRCPC2 on the host.
+- **Does not run yet:** all test guests exit 70 with `kernel placed the guest window at 0x600020000000 instead of 0x600000000000`. The runner insists on a guest window at a fixed hint address and the CI VM's kernel put it 512 MiB higher. Not yet known whether this is specific to the CI VM or to the macOS version. Next: rerun on real hardware, or make the runner accept a relocated window.
