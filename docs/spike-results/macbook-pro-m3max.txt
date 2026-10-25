@@ -1,0 +1,15 @@
+## host: MacBook Pro (Apple M3 Max), run locally by the maintainer on 2026-10-25
+address_space_probe: pointer bits=64
+[1] fixed low-address attempts (PS5 non-PIE images link near 0):
+  fixed page zero              0x000000000000 +0x100000: FAIL (Cannot allocate memory)
+  fixed 64K                    0x000000010000 +0x1000000: FAIL (Cannot allocate memory)
+  fixed 4M (typical ELF base)  0x000000400000 +0x1000000: FAIL (Cannot allocate memory)
+  fixed 4G                     0x000100000000 +0x10000000: FAIL (Cannot allocate memory)
+  fixed commpage region        0x000fc0000000 +0x1000000: FAIL (Permission denied)
+  fixed gpu carveout start     0x001000000000 +0x10000000: FAIL (Permission denied)
+[2] largest single PROT_NONE reservation: 130574 GiB (0x7f83b5000000)
+[3] guest window: reserve 16 GiB: base=0x7000000000
+[4] RW commit: ok; MAP_JIT: ok
+tso_bench
+stream  relaxed 0.009s | acq/rel 0.010s (x1.14) | seq_cst 0.010s (x1.16)
+chase   relaxed 0.869s | acquire 0.926s (x1.07)

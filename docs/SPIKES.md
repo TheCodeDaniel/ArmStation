@@ -42,3 +42,7 @@ Raw output: `docs/spike-results/macos-arm64.txt`. Re-run with the `spikes` workf
 - **Address window:** every fixed mapping failed with ENOMEM, including address 0, 4 MiB, 4 GiB, the commpage region and the GPU carveout start. A 16 GiB PROT_NONE reservation succeeded (base `0x300000000`), the largest single reservation was ~97,000 GiB, and MAP_JIT worked. **Confirms the guest-window design; identity mapping of low-linked PS5 images is not possible.**
 - **Ordering cost (floor only):** acquire/release was 1.2-2.2x a plain stream copy (the plain loop may be auto-vectorised, so this overstates it) and 0.8-1.0x on a dependent pointer chase, i.e. roughly free when latency-bound. seq_cst was 1.3-2.3x. Run-to-run noise is large on a shared 3-core VM. Encouraging, not conclusive: FEX's real codegen is the test that matters.
 - **Host features:** the runner reports FEAT_LRCPC and FEAT_LSE, the instructions a cheap TSO path relies on.
+
+## Results on real hardware (MacBook Pro, Apple M3 Max)
+
+Raw output: `docs/spike-results/macbook-pro-m3max.txt`. Same conclusion for the address window (all low fixed mappings fail; commpage and GPU-carveout starts return EACCES rather than ENOMEM; 16 GiB window and MAP_JIT work). Ordering floor is lower than on the CI VM: acquire/release 1.07-1.14x, seq_cst 1.16x. This is still only a floor; FEXCore on a real guest is the deciding measurement.
