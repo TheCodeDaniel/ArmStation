@@ -1,0 +1,29 @@
+name: spike1-fex
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fexcore-darwin:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build FEXCore (Darwin fork) and the voile-lkd host runner
+        run: |
+          set +e
+          mkdir -p docs/spike-results; R=docs/spike-results/spike1-fexcore.txt
+          { echo "## host"; sw_vers; uname -m; sysctl -n machdep.cpu.brand_string; } > $R 2>&1
+          brew install cmake ninja >/dev/null 2>&1
+          git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/Zagrios/voile-lkd /tmp/v > /tmp/clone.log 2>&1
+          echo "## clone voile-lkd rc=$?" >> $R; tail -5 /tmp/clone.log >> $R
+          ls /tmp/v/fex | head -5 >> $R
+          cd /tmp/v
+          echo "## fexdarwin/scripts/build.sh" >> $R
+          JOBS=3 bash fexdarwin/scripts/build.sh > /tmp/build.log 2>&1
+          echo "rc=$?" >> $R
+          tail -40 /tmp/build.log >> $R
+          ls -la fexdarwin/build/host/fexdarwin-run >> $R 2>&1
+          cd - >/dev/null
+          git config user.name spikes-bot; git config user.email bot@users.noreply.github.com
+          git add $R && git commit -m "Record spike 1 build result" && git push
