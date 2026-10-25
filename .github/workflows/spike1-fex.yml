@@ -12,7 +12,7 @@ jobs:
       - name: Build FEXCore (Darwin fork) and the voile-lkd host runner
         run: |
           set +e
-          mkdir -p docs/spike-results; R=docs/spike-results/spike1-fexcore.txt
+          mkdir -p docs/spike-results; R=$PWD/docs/spike-results/spike1-fexcore.txt
           { echo "## host"; sw_vers; uname -m; sysctl -n machdep.cpu.brand_string; } > $R 2>&1
           brew install cmake ninja >/dev/null 2>&1
           git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/Zagrios/voile-lkd /tmp/v > /tmp/clone.log 2>&1
@@ -26,4 +26,4 @@ jobs:
           ls -la fexdarwin/build/host/fexdarwin-run >> $R 2>&1
           cd - >/dev/null
           git config user.name spikes-bot; git config user.email bot@users.noreply.github.com
-          git add $R && git commit -m "Record spike 1 build result" && git push
+          git add docs/spike-results/spike1-fexcore.txt && git commit -m "Record spike 1 build result" && git push
