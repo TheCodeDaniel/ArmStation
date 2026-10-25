@@ -5,7 +5,7 @@ Three small experiments that decide whether the plan is viable **before** we bui
 ## Spike 3: address window (`spikes/address_space_probe.cpp`)
 
 ```sh
-cmake -S . -B build -G Ninja && cmake --build build
+cmake -S . -B build && cmake --build build
 ./build/spikes/address_space_probe
 ```
 
