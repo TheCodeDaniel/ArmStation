@@ -4,57 +4,74 @@ ProductVersion:		15.7.9
 BuildVersion:		24G830
 arm64
 Apple M1 (Virtual)
-## clone voile-lkd rc=0
-Cloning into '/private/tmp/v/fex/External/zydis/dependencies/zycore'...
-From https://github.com/zyantific/zycore-c
- * branch            75a36c45ae1ad382b0f4e0ede0af84c11ee69928 -> FETCH_HEAD
-Submodule path 'fex/External/zydis/dependencies/zycore': checked out '75a36c45ae1ad382b0f4e0ede0af84c11ee69928'
-Submodule path 'fex/Source/Common/cpp-optparse': checked out '9f94388a339fcbb0bc95c17768eb786c85988f6e'
-AGENTS.md
-CLAUDE.md
-CMakeLists.txt
-CODE_OF_CONDUCT.md
-CodeEmitter
-## fexdarwin/scripts/build.sh
-rc=1
-[146/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/Core/X86Tables/SecondaryGroupTables.cpp.o
-[147/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/Core/X86Tables/SecondaryModRMTables.cpp.o
-[148/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/Core/X86Tables/SecondaryTables.cpp.o
-[149/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/Core/X86Tables/VEXTables.cpp.o
-[150/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/GDBJIT/GDBJIT.cpp.o
-[151/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/Core/X86Tables/X87Tables.cpp.o
-[152/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/IR/IREmitter.cpp.o
-[153/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/IR/IRDumper.cpp.o
-[154/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/IR/PassManager.cpp.o
-[155/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/IR/Passes/IRDumperPass.cpp.o
-[156/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/IR/Passes/IRValidation.cpp.o
-[157/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/IR/Passes/RedundantFlagCalculationElimination.cpp.o
-[158/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Utils/LongJump.cpp.o
-[159/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/IR/Passes/RegisterAllocationPass.cpp.o
-[160/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Utils/Telemetry.cpp.o
-[161/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/IR/Passes/x87StackOptimizationPass.cpp.o
-[162/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Utils/Threads.cpp.o
-[163/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Utils/WorkQueueThread.cpp.o
-[164/169] Linking CXX static library FEXCore/Source/libFEXCore_Base.a
-[165/169] Linking CXX static library FEXCore/Source/libJemallocDummy.a
-[166/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Utils/Profiler.cpp.o
-[167/169] Building CXX object FEXCore/Source/CMakeFiles/FEXCore_object.dir/Utils/ArchHelpers/Arm64.cpp.o
-[168/169] Linking CXX static library FEXCore/Source/libFEXCore.a
--- The C compiler identification is AppleClang 17.0.0.17000013
--- The CXX compiler identification is AppleClang 17.0.0.17000013
--- Detecting C compiler ABI info
--- Detecting C compiler ABI info - done
--- Check for working C compiler: /usr/bin/clang - skipped
--- Detecting C compile features
--- Detecting C compile features - done
--- Detecting CXX compiler ABI info
--- Detecting CXX compiler ABI info - done
--- Check for working CXX compiler: /usr/bin/clang++ - skipped
--- Detecting CXX compile features
--- Detecting CXX compile features - done
--- Configuring done (0.8s)
--- Generating done (0.0s)
--- Build files have been written to: /tmp/v/fexdarwin/build/host
-ninja: Entering directory `/tmp/v/fexdarwin/build/host'
-ninja: error: '/tmp/v/lkd/build/lib/liblkd.a', needed by 'fexdarwin-run', missing and no known rule to make it
-ls: fexdarwin/build/host/fexdarwin-run: No such file or directory
+## clone rc=0
+## lkd build
+rc=0
+[76/84] Building C object CMakeFiles/lkd.dir/src/task/ids.c.o
+[77/84] Building C object CMakeFiles/lkd.dir/src/task/family.c.o
+[78/84] Building C object CMakeFiles/lkd.dir/src/task/exec.c.o
+[79/84] Building C object CMakeFiles/lkd.dir/src/task/time.c.o
+[80/84] Building C object CMakeFiles/lkd.dir/src/task/sys.c.o
+[81/84] Building C object CMakeFiles/lkd.dir/src/task/tasks.c.o
+[82/84] Building C object CMakeFiles/lkd.dir/src/task/wait.c.o
+[83/84] Linking C static library lib/liblkd.a
+## fexdarwin build
+rc=0
+[14/16] Building CXX object CMakeFiles/fexdarwin-run.dir/src/HitchLog.cpp.o
+[15/16] Building CXX object CMakeFiles/fexdarwin-run.dir/src/LkdLoader.cpp.o
+/tmp/v/fexdarwin/src/LkdLoader.cpp:33:61: warning: unused variable 'PT_GNU_STACK' [-Wunused-const-variable]
+   33 | constexpr uint32_t PT_LOAD = 1, PT_INTERP = 3, PT_PHDR = 6, PT_GNU_STACK = 0x6474e551;
+      |                                                             ^~~~~~~~~~~~
+1 warning generated.
+[16/16] Linking CXX executable fexdarwin-run
+-rwxr-xr-x  1 runner  wheel  4029600 Oct 25 17:24 /tmp/v/fexdarwin/build/host/fexdarwin-run
+-rwxr-xr-x  1 runner  wheel  4029600 Oct 25 17:24 fexdarwin/build/host/fexdarwin-run
+## features
+[fexdarwin] host features (sysctl hw.optional.arm.*):
+  hw.optional.arm.FEAT_AES           1
+  hw.optional.arm.FEAT_PMULL         1
+  hw.optional.arm.FEAT_SHA1          1
+  hw.optional.arm.FEAT_SHA256        1
+  hw.optional.arm.FEAT_CRC32         1
+  hw.optional.arm.FEAT_LSE           1
+  hw.optional.arm.FEAT_LRCPC         1
+  hw.optional.arm.FEAT_LRCPC2        1
+  hw.optional.arm.FEAT_CSSC          0
+  hw.optional.arm.FEAT_FCMA          1
+  hw.optional.arm.FEAT_FlagM         1
+  hw.optional.arm.FEAT_FlagM2        1
+  hw.optional.arm.FEAT_FRINTTS       1
+  hw.optional.arm.FEAT_RPRES         0
+  hw.optional.arm.FEAT_AFP           0
+  hw.optional.arm.FEAT_ECV           0
+  hw.optional.arm.FEAT_WFxT          0
+  hw.optional.arm.FEAT_I8MM          0
+  hw.optional.arm.FEAT_DotProd       1
+  hw.optional.arm.FEAT_MOPS          (absent)
+  hw.optional.arm.FEAT_SVE           (absent)
+  DCZID_EL0 = 0x4 (DC ZVA permitted, block 64 bytes)
+  hw.cachelinesize = 128 -> DCacheLineLog2 = 5
+  FPCR trap-enable probe: wrote 0x9f00 read 0x9f00 -> SupportsFloatExceptions=1
+  logical cores = 3, HostType = Unknown, SVE128=0 SVE256=0 AVX=1 LSE=1 RCPC=1 RCPC2=1 CLZERO=1
+## zig witnesses
+zig rc=0
+witness build rc=0
++ /tmp/v/tools/venv/bin/python -m ziglang cc -target x86_64-linux-musl -static -nostdlib -ffreestanding -fno-stack-protector -fno-builtin -fPIE -O1 -g0 -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 -Wl,-z,norelro -Wl,--image-base=0x600000400000 -Wl,--build-id=none  -o bin/w01_hello src/w01_hello.c
+d3664de739a8b3947e76fe03eb6d0f398310c968c070c182150a8b51c3843f63  /tmp/v/tests/elf-x86_64/bin/w01_hello
++ /tmp/v/tools/venv/bin/python -m ziglang cc -target x86_64-linux-musl -static -nostdlib -ffreestanding -fno-stack-protector -fno-builtin -fPIE -O1 -g0 -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 -Wl,-z,norelro -Wl,--image-base=0x600000400000 -Wl,--build-id=none  -o bin/w02_int src/w02_int.c
+24f1c734c1230068abe87f4114c634ccb5a1de0c0c01badc73deb78c3580ca64  /tmp/v/tests/elf-x86_64/bin/w02_int
++ /tmp/v/tools/venv/bin/python -m ziglang cc -target x86_64-linux-musl -static -nostdlib -ffreestanding -fno-stack-protector -fno-builtin -fPIE -O1 -g0 -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 -Wl,-z,norelro -Wl,--image-base=0x600000400000 -Wl,--build-id=none -mavx2 -mfma -mf16c -msse4.2 -mpclmul -maes -mpopcnt -ffp-contract=off -o bin/w03_simd src/w03_simd.c
+f72de7cb7473bb4ae2e68a7fc222722911616ab6b222c1eced6fe8617299c6d7  /tmp/v/tests/elf-x86_64/bin/w03_simd
+## run w01_hello
+/Users/runner/work/_temp/64837935-a76b-45cc-955e-bcf4e477e35a.sh: line 21: timeout: command not found
+exit=127
+## run w02_int
+/Users/runner/work/_temp/64837935-a76b-45cc-955e-bcf4e477e35a.sh: line 21: timeout: command not found
+exit=127
+## run w03_simd
+/Users/runner/work/_temp/64837935-a76b-45cc-955e-bcf4e477e35a.sh: line 21: timeout: command not found
+exit=127
+## w02_int TSOENABLED=1
+/Users/runner/work/_temp/64837935-a76b-45cc-955e-bcf4e477e35a.sh: line 25: timeout: command not found
+## w02_int TSOENABLED=0
+/Users/runner/work/_temp/64837935-a76b-45cc-955e-bcf4e477e35a.sh: line 25: timeout: command not found
